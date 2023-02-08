@@ -238,64 +238,62 @@ def peakIndexes(y, thres=0.3, min_dist=1, thres_abs=False):
 	return peaks	
 
 
-def readcal(width):
+def readcal(width, cal_file='caldata.txt'):
 	#read in the calibration points
 	#compute second or third order polynimial, and generate wavelength array!
 	#Les Wright 28 Sept 2022
 	errors = 0
 	message = 0 #variable to store returned message data
+	ccd_pixels = []
+	wavelengths = []
 	try:
 		print("Loading calibration data...")
-		file = open('caldata.txt', 'r')
-	except:
-		errors = 1
-
-	try:
+		with open(cal_file, 'r') as file:
 		#read both the pixel numbers and wavelengths into two arrays.
-		lines = file.readlines()
-		line0 = lines[0].strip() #strip newline
-		pixels = line0.split(',') #split on ,
-		pixels = [int(i) for i in pixels] #convert list of strings to ints
-		line1 = lines[1].strip()
-		wavelengths = line1.split(',')
-		wavelengths = [float(i) for i in wavelengths]#convert list of strings to floats
-	except:
-		errors = 1
+			lines = file.readlines()
+			## line0 = lines[0].strip() #strip newline
+			ccd_pixels = lines[0].strip().split(',') #split on ,
+			ccd_pixels = [int(i) for i in ccd_pixels] #convert list of strings to ints
+			## line1 = lines[1].strip()
+			wavelengths = lines[1].strip().split(',')
+			wavelengths = [float(i) for i in wavelengths]#convert list of strings to floats
+		assert(len(ccd_pixels) == len(wavelengths)), 'There is a mismatch between the number of points of the CCD sensor and wavelengths'
+		assert(len(ccd_pixels) > 2), 'There are not enough points selected on the CCD sensor'
+		assert(len(wavelengths) > 2), 'There are not enough wavelengths selected'
+	except FileNotFoundError:
+		print('No calibration file found!')
+		print('Please verify that there is a calibration file and that it is in the right location')
+	except ValueError as val_err:
+		print(val_err)
+	except AssertionError as assert_error:
+		print(assert_error)
+	except Exception as err:
+		print(f'Unexpected {err=}, {type(err)=}')
+		raise
 
-	try:
-		if (len(pixels) != len(wavelengths)):
-			#The Calibration points are of unequal length!
-			errors = 1
-		if (len(pixels) < 3):
-			#The Cal data contains less than 3 pixels!
-			errors = 1
-		if (len(wavelengths) < 3):
-			#The Cal data contains less than 3 wavelengths!
-			errors = 1
-	except:
-		errors = 1
-
-	if errors == 1:
-		print("Loading of Calibration data failed (missing caldata.txt or corrupted data!")
-		print("Loading placeholder data...")
-		print("You MUST perform a Calibration to use this software!\n\n")
-		pixels = [0,400,800]
-		wavelengths = [380,560,750]
+	## if errors == 1:
+	## 	print("Loading of Calibration data failed (missing caldata.txt or corrupted data!")
+	finally:
+		if not ccd_pixels or not wavelengths:
+			print("Loading placeholder data...")
+			print("You MUST perform a Calibration to use this software!\n\n")
+			ccd_pixels = [0,400,800]
+			wavelengths = [380,560,750]
 
 
 	#create an array for the data...
 	wavelengthData = []
 
-	if (len(pixels) == 3):
+	if (len(ccd_pixels) == 3):
 		print("Calculating second order polynomial...")
-		coefficients = np.poly1d(np.polyfit(pixels, wavelengths, 2))
+		coefficients = np.poly1d(np.polyfit(ccd_pixels, wavelengths, 2))
 		print(coefficients)
 		C1 = coefficients[2]
 		C2 = coefficients[1]
 		C3 = coefficients[0]
 		print("Generating Wavelength Data!\n\n")
-		for pixel in range(width):
-			wavelength=((C1*pixel**2)+(C2*pixel)+C3)
+		for disp_pixel in range(width):
+			wavelength=((C1*disp_pixel**2)+(C2*disp_pixel)+C3)
 			wavelength = round(wavelength,6) #because seriously!
 			wavelengthData.append(wavelength)
 		print("Done! Note that calibration with only 3 wavelengths will not be accurate!")
@@ -304,9 +302,9 @@ def readcal(width):
 		else:
 			message = 1 #return message only 3 wavelength cal secodn order poly (Inaccurate)
 
-	if (len(pixels) > 3):
+	if (len(ccd_pixels) > 3):
 		print("Calculating third order polynomial...")
-		coefficients = np.poly1d(np.polyfit(pixels, wavelengths, 3))
+		coefficients = np.poly1d(np.polyfit(ccd_pixels, wavelengths, 3))
 		print(coefficients)
 		#note this pulls out extremely precise numbers.
 		#this causes slight differences in vals then when we compute manual, but hey ho, more precision
@@ -323,8 +321,8 @@ def readcal(width):
 		print(C4)
 		'''
 		print("Generating Wavelength Data!\n\n")
-		for pixel in range(width):		
-			wavelength=((C1*pixel**3)+(C2*pixel**2)+(C3*pixel)+C4)
+		for disp_pixel in range(width):
+			wavelength=((C1*disp_pixel**3)+(C2*disp_pixel**2)+(C3*disp_pixel)+C4)
 			wavelength = round(wavelength,6)
 			wavelengthData.append(wavelength)
 
@@ -333,7 +331,7 @@ def readcal(width):
 		#do something if it is too big!
 		predicted = []
 		#iterate over the original pixelnumber array and predict results
-		for i in pixels:
+		for i in ccd_pixels:
 			px = i
 			y=((C1*px**3)+(C2*px**2)+(C3*px)+C4)
 			predicted.append(y)
@@ -385,15 +383,16 @@ def writecal(clickArray):
 	#second it validates the data in as far as no strings were entered 
 	try:
 		wldata = [float(x) for x in wldata]
-	except:
+	except ValueError:
 		print("Only ints or decimals are allowed!")
 		print("Calibration aborted!")
+		return calcomplete
 
 	pxdata = ','.join(map(str, pxdata)) #convert array to string
 	wldata = ','.join(map(str, wldata)) #convert array to string
-	f = open('caldata.txt','w')
-	f.write(pxdata+'\r\n')
-	f.write(wldata+'\r\n')
+	with open('caldata.txt','w') as f:
+		f.write(pxdata+'\r\n')
+		f.write(wldata+'\r\n')
 	print("Calibration Data Written!")
 	calcomplete = True
 	return calcomplete
