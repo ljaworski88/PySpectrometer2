@@ -35,8 +35,8 @@ from picamera2 import Picamera2
 
 parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group()
-group.add_argument("--fullscreen", help="Fullscreen (Native 800*480)",action="store_true")
-group.add_argument("--waterfall", help="Enable Waterfall (Windowed only)",action="store_true")
+group.add_argument("--fullscreen", help="Fullscreen (Native 800*480)", action="store_true")
+group.add_argument("--waterfall", help="Enable Waterfall (Windowed only)", action="store_true")
 args = parser.parse_args()
 dispFullscreen = False
 dispWaterfall = False
@@ -156,11 +156,10 @@ def snapshot(savedata):
 	cv2.imwrite("spectrum-" + now + ".png",imdata1)
 	#print(graphdata[0]) #wavelengths
 	#print(graphdata[1]) #intensities
-	f = open("Spectrum-"+now+'.csv','w')
-	f.write('Wavelength,Intensity\r\n')
-	for x in zip(graphdata[0],graphdata[1]):
-		f.write(str(x[0])+','+str(x[1])+'\r\n')
-	f.close()
+	with open("Spectrum-"+now+'.csv','w') as f:
+		f.write('Wavelength,Intensity\r\n')
+		for x in zip(graphdata[0],graphdata[1]):
+			f.write(str(x[0])+','+str(x[1])+'\r\n')
 	message = "Last Save: "+timenow
 	return(message)
 
@@ -204,7 +203,7 @@ while True:
 		cv2.putText(graph,str(positiondata[1])+'nm',(positiondata[0]-textoffset,12),font,0.4,(0,0,0),1, cv2.LINE_AA)
 
 	#horizontal lines
-	for i in range (320):
+	for intense in range (320):
 		if i>=64:
 			if i%64==0: #suppress the first line then draw the rest...
 				cv2.line(graph,(0,i),(frameWidth,i),(100,100,100),1)
@@ -267,16 +266,16 @@ while True:
 		
 	
 	#now draw the intensity data....
-	index=0
-	for i in intensity:
+	# index=0
+	for index, intense in enumerate(intensity):
 		rgb = wavelength_to_rgb(round(wavelengthData[index]))#derive the color from the wvalenthData array
 		r = rgb[0]
 		g = rgb[1]
 		b = rgb[2]
 		#or some reason origin is top left.
-		cv2.line(graph, (index,320), (index,320-i), (b,g,r), 1)
-		cv2.line(graph, (index,319-i), (index,320-i), (0,0,0), 1,cv2.LINE_AA)
-		index+=1
+		cv2.line(graph, (index, 320), (index, 320 - intense), (b, g, r), 1)
+		cv2.line(graph, (index, 319 - intense), (index, 320 - intense), (0, 0, 0), 1, cv2.LINE_AA)
+		# index+=1
 
 
 	#find peaks and label them
