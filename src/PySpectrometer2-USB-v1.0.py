@@ -101,11 +101,11 @@ thresh = 20 #Threshold max val 100
 
 calibrate = False
 
-clickArray = [] 
+click_array = []
 cursorX = 0
 cursorY = 0
 def handle_mouse(event,x,y,flags,param):
-	global clickArray
+	global click_array
 	global cursorX
 	global cursorY
 	mouseYOffset = 160
@@ -158,8 +158,8 @@ def snapshot(savedata):
 		imdata2 = savedata[2]
 		cv2.imwrite("waterfall-" + now + ".png",imdata2)
 	cv2.imwrite("spectrum-" + now + ".png",imdata1)
-	#print(graphdata[0]) #wavelengths
-	#print(graphdata[1]) #intensities
+	#print(graph_data[0]) #wavelengths
+	#print(graph_data[1]) #intensities
 	f = open("Spectrum-"+now+'.csv','w')
 	f.write('Wavelength,Intensity\r\n')
 	for x in zip(graphdata[0],graphdata[1]):
@@ -310,10 +310,10 @@ while(cap.isOpened()):
 			cv2.putText(graph,str(cursorX)+'px',(cursorX+5,cursorY-165),font,0.4,(0,0,0),1, cv2.LINE_AA)
 		else:
 			#also make sure the click array stays empty
-			clickArray = []
+			click_array = []
 
-		if clickArray:
-			for data in clickArray:
+		if click_array:
+			for data in click_array:
 				mouseX=data[0]
 				mouseY=data[1]
 				cv2.circle(graph,(mouseX,mouseY),5,(0,0,0),-1)
@@ -393,7 +393,7 @@ while(cap.isOpened()):
 				savedata.append(graphdata)
 			saveMsg = snapshot(savedata)
 		elif keyPress == ord("c"):
-			calcomplete = writecal(clickArray)
+			calcomplete = writecal(click_array)
 			if calcomplete:
 				#overwrite wavelength data
 				#Go grab the computed calibration data
@@ -407,7 +407,7 @@ while(cap.isOpened()):
 				tens = (graticuleData[0])
 				fifties = (graticuleData[1])
 		elif keyPress == ord("x"):
-			clickArray = []
+			click_array = []
 		elif keyPress == ord("m"):
 			recPixels = False #turn off recpixels!
 			if measure == False:
