@@ -161,7 +161,7 @@ def snapshot(savedata, recording=False):
         timenow = datetime.utcnow().strftime("%H:%M:%S")
     spectrum_data = savedata[0]
     graph_data = savedata[1]
-    print(graph_data)
+    # print(graph_data)
     if display_waterfall:
         waterfall_data = savedata[2]
         cv2.imwrite(f'waterfall-{now}.png', waterfall_data)
