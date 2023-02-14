@@ -375,7 +375,7 @@ def writecal(clickArray):
     print("Enter known wavelengths for observed pixels!")
     for i in clickArray:
         pixel = i[0]
-        wavelength = input("Enter wavelength for: " + str(pixel) + "px:")
+        wavelength = input(f"Enter wavelength for: {pixel}px:")
         pxdata.append(pixel)
         wldata.append(wavelength)
     # This try except serves two purposes

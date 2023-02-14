@@ -28,13 +28,14 @@ For instructions please consult the readme!
 """
 
 import cv2
-import time
+from datetime import datetime
 import numpy as np
 from specFunctions import wavelength_to_rgb, savitzky_golay, peakIndexes, readcal, writecal, background, \
     generateGraticule
 import base64
 import argparse
 from picamera2 import Picamera2
+import os.path
 
 parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group()
@@ -153,10 +154,14 @@ tens, fifties = generateGraticule(wavelength_data)
 
 
 def snapshot(savedata, recording=False):
-    now = time.strftime("%Y%m%d--%H%M%S")
-    timenow = time.strftime("%H:%M:%S")
+    now = datetime.utcnow().strftime("%Y%m%d--%H%M%S")
+    if recording:
+        timenow = datetime.utcnow().strftime("%H:%M:%S.%f")
+    elif not recording:
+        timenow = datetime.utcnow().strftime("%H:%M:%S")
     spectrum_data = savedata[0]
     graph_data = savedata[1]
+    print(graph_data)
     if display_waterfall:
         waterfall_data = savedata[2]
         cv2.imwrite(f'waterfall-{now}.png', waterfall_data)
@@ -164,14 +169,16 @@ def snapshot(savedata, recording=False):
         cv2.imwrite(f'spectrum-{now}.png', spectrum_data)
         with open(f'Spectrum-{now}.csv', 'w') as f:
             f.write('Wavelength,Intensity\r\n')
-            for datum in graph_data:
+            for datum in zip(graph_data[0], graph_data[1]):
                 f.write(f'{datum[0]},{datum[1]}\r\n')
     # print(graph_data[0]) #wavelengths
     # print(graph_data[1]) #intensities
     if recording:
+        if not os.path.isfile('Spectrum-recording.csv'):
+            with open('Spectrum-recording.csv', 'w') as f:
+                f.write('Wavelength,Intensity,Time\n')
         with open(f'Spectrum-recording.csv', 'a') as f:
-            f.write('Wavelength,Intensity,timenow\n')
-            for datum in graph_data:
+            for datum in zip(graph_data[0], graph_data[1]):
                 f.write(f'{datum[0]},{datum[1]},{timenow}\n')
     message = f"Last Save: {timenow}"
     return message
@@ -585,6 +592,16 @@ while True:
 
         cv2.imshow(title2, waterfall_vertical)
 
+    if recording:
+        if click_array and not (len(click_array) % 2):
+            for points_pair in range(0,len(click_array),2):
+                recording_wavelength = list(wavelength_data[click_array[points_pair][0]:click_array[points_pair + 1][0]])
+                recording_intensity = list(intensity[click_array[points_pair][0]:click_array[points_pair + 1][0]])
+            recording_graph = [recording_wavelength, recording_intensity]
+            save_data = [spectrum_vertical, recording_graph]
+            snapshot(save_data, recording=True)
+            # print(recording_wavelength)
+            # print(recording_intensity)
     key_press = cv2.waitKey(1)
     # key_press = cv2.pollKey()
     if key_press == ord('q'):
@@ -673,7 +690,7 @@ while True:
     elif key_press == ord("r"):  # Record between two wavelengths
         if recording:
             recording = False
-        if not recording:
+        elif not recording:
             recording = True
 
 # Everything done
