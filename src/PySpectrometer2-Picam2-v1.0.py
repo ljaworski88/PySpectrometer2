@@ -39,8 +39,8 @@ import os.path
 
 parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group()
-group.add_argument("--fullscreen", help="Fullscreen (Native 800*480)", action="store_true")
-group.add_argument("--waterfall", help="Enable Waterfall (Windowed only)", action="store_true")
+group.add_argument("--fullscreen", "-f", help="Fullscreen (Native 800*480)", action="store_true")
+group.add_argument("--waterfall", "-w", help="Enable Waterfall (Windowed only)", action="store_true")
 args = parser.parse_args()
 display_fullscreen = False
 display_waterfall = False
