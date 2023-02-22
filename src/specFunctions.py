@@ -315,12 +315,6 @@ def readcal(width, cal_file='caldata.txt'):
         C2 = coefficients[2]
         C3 = coefficients[1]
         C4 = coefficients[0]
-        '''
-		print(C1)
-		print(C2)
-		print(C3)
-		print(C4)
-		'''
         print("Generating Wavelength Data!\n\n")
         for disp_pixel in range(width):
             wavelength = ((C1 * disp_pixel ** 3) + (C2 * disp_pixel ** 2) + (C3 * disp_pixel) + C4)

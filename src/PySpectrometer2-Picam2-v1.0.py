@@ -36,20 +36,30 @@ import base64
 import argparse
 from picamera2 import Picamera2
 import os.path
+from scipy.integrate import simpson
 
 parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--fullscreen", "-f", help="Fullscreen (Native 800*480)", action="store_true")
 group.add_argument("--waterfall", "-w", help="Enable Waterfall (Windowed only)", action="store_true")
+group.add_argument("--absorbance", "-a",
+                   nargs='+',
+                   help="Set up a recording for absorbance measurements",
+                   type=float)
 args = parser.parse_args()
 display_fullscreen = False
 display_waterfall = False
+absorbance_wavelengths = []
 if args.fullscreen:
     print("Fullscreen Spectrometer enabled")
     display_fullscreen = True
 if args.waterfall:
     print("Waterfall display enabled")
     display_waterfall = True
+if args.absorbance:
+    if len(args.absorbance) % 2:
+        raise (ValueError('Need an even number of wavelength values!'))
+    absorbance_wavelengths = args.absorbance
 
 frame_width = 800
 frameHeight = 600
@@ -140,49 +150,57 @@ waterfall.fill(0)  # fill black
 
 # Go grab the computed calibration data
 wavelength_data, calmsg1, calmsg2, calmsg3 = readcal(frame_width)
-# caldata = readcal(frame_width)
-# wavelength_data = caldata[0]
-# calmsg1 = caldata[1]
-# calmsg2 = caldata[2]
-# calmsg3 = caldata[3]
+if absorbance_wavelengths:
+    absorbance_indices = list(np.searchsorted(wavelength_data, absorbance_wavelengths))
+    # go one index before the first wavelength of the pair because searchsorted finds the first instance larger than the
+    # given number
+    for index in range(0, len(absorbance_indices), 2):
+        absorbance_indices[index] -= 1
 
 # generate the graticule data
 tens, fifties = generateGraticule(wavelength_data)
-# graticuleData = generateGraticule(wavelength_data)
-# tens = (graticuleData[0])
-# fifties = (graticuleData[1])
 
 
-def snapshot(savedata, recording=False):
+def snapshot(savedata):
     now = datetime.utcnow().strftime("%Y%m%d--%H%M%S")
-    if recording:
-        timenow = datetime.utcnow().strftime("%H:%M:%S.%f")
-    elif not recording:
-        timenow = datetime.utcnow().strftime("%H:%M:%S")
+    timenow = datetime.utcnow().strftime("%H:%M:%S")
     spectrum_data = savedata[0]
     graph_data = savedata[1]
     # print(graph_data)
     if display_waterfall:
         waterfall_data = savedata[2]
         cv2.imwrite(f'waterfall-{now}.png', waterfall_data)
-    if not recording:
-        cv2.imwrite(f'spectrum-{now}.png', spectrum_data)
-        with open(f'Spectrum-{now}.csv', 'w') as f:
-            f.write('Wavelength,Intensity\r\n')
-            for datum in zip(graph_data[0], graph_data[1]):
-                f.write(f'{datum[0]},{datum[1]}\r\n')
-    # print(graph_data[0]) #wavelengths
-    # print(graph_data[1]) #intensities
-    if recording:
-        if not os.path.isfile('Spectrum-recording.csv'):
-            with open('Spectrum-recording.csv', 'w') as f:
-                f.write('Wavelength,Intensity,Time\n')
-        with open(f'Spectrum-recording.csv', 'a') as f:
-            for datum in zip(graph_data[0], graph_data[1]):
-                f.write(f'{datum[0]},{datum[1]},{timenow}\n')
+    cv2.imwrite(f'spectrum-{now}.png', spectrum_data)
+    with open(f'Spectrum-{now}.csv', 'w') as f:
+        f.write('Wavelength,Intensity\r\n')
+        for datum in zip(graph_data[0], graph_data[1]):
+            f.write(f'{datum[0]},{datum[1]}\r\n')
     message = f"Last Save: {timenow}"
     return message
 
+def spectrum_recording(wavelengths, intensity, slice_indices, spectrum_file='spectrum_recording.csv'):
+    timenow = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
+    recording_wavelength = []
+    recording_intensity = []
+    for points_pair in range(0, len(slice_indices), 2):
+        recording_wavelength += list(wavelengths[slice_indices[points_pair][0]:slice_indices[points_pair + 1][0]])
+        recording_intensity += list(intensity[slice_indices[points_pair][0]:slice_indices[points_pair + 1][0]])
+    if not os.path.isfile(spectrum_file):
+        with open(spectrum_file, 'w') as f:
+            f.write('Wavelength,Intensity,Time\n')
+    with open(spectrum_file, 'a') as f:
+        for datum in zip(recording_wavelength, recording_intensity):
+            f.write(f'{datum[0]},{datum[1]},{timenow}\n')
+    return timenow, recording_wavelength, recording_intensity
+
+def record_absorbance(wavelengths, intensity, slice_indices, spectrum_file='absorbance_spectrum_recording.csv', absorbance_file='absorbance_recording.csv'):
+    timenow, recording_wavelength, recording_intensity = spectrum_recording(wavelengths, intensity, slice_indices, spectrum_file)
+    if not os.path.isfile(absorbance_file):
+        with open(absorbance_file, 'w') as f:
+            f.write('Wavelengths,Area,Time\n')
+    with open(absorbance_file, 'a') as f:
+        for datum in zip(graph_data[0], graph_data[1]):
+            f.write(f'{datum[0]},{datum[1]},{timenow}\n')
 
 while True:
     # Capture frame-by-frame
@@ -594,14 +612,11 @@ while True:
 
     if recording:
         if click_array and not (len(click_array) % 2):
-            for points_pair in range(0,len(click_array),2):
-                recording_wavelength = list(wavelength_data[click_array[points_pair][0]:click_array[points_pair + 1][0]])
-                recording_intensity = list(intensity[click_array[points_pair][0]:click_array[points_pair + 1][0]])
-            recording_graph = [recording_wavelength, recording_intensity]
-            save_data = [spectrum_vertical, recording_graph]
-            snapshot(save_data, recording=True)
+            spectrum_recording(wavelength_data, intensity, click_array)
             # print(recording_wavelength)
             # print(recording_intensity)
+        if absorbance_indices:
+            record_absorbance(wavelength_data, intensity, absorbance_indices)
     key_press = cv2.waitKey(1)
     # key_press = cv2.pollKey()
     if key_press == ord('q'):
