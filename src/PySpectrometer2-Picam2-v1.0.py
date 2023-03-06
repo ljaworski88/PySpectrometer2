@@ -28,28 +28,35 @@ For instructions please consult the readme!
 """
 
 import cv2
-from datetime import datetime
 import numpy as np
 from specFunctions import wavelength_to_rgb, savitzky_golay, peakIndexes, readcal, writecal, background, \
-    generateGraticule
+    generateGraticule, Record
 import base64
 import argparse
 from picamera2 import Picamera2
-import os.path
-from scipy.integrate import simpson
 
 parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--fullscreen", "-f", help="Fullscreen (Native 800*480)", action="store_true")
 group.add_argument("--waterfall", "-w", help="Enable Waterfall (Windowed only)", action="store_true")
 group.add_argument("--absorbance", "-a",
-                   nargs='+',
-                   help="Set up a recording for absorbance measurements",
+                   nargs=1,
+                   help="Set up a recording for absorbance measurements between sets of two wavelengths",
                    type=float)
+
+group.add_argument("--savitzky-golay", "-s",
+                   nargs='+',
+                   help="Set initial Savitzky-Golay filter smoothing",
+                   type=int)
+group.add_argument("--gain", "-g",
+                   nargs=1,
+                   help="Set initial camera gain",
+                   type=int)
 args = parser.parse_args()
 display_fullscreen = False
 display_waterfall = False
 absorbance_wavelengths = []
+absorbance_indices = []
 if args.fullscreen:
     print("Fullscreen Spectrometer enabled")
     display_fullscreen = True
@@ -63,6 +70,7 @@ if args.absorbance:
 
 frame_width = 800
 frameHeight = 600
+integrate_absorbtion = False
 
 picam2 = Picamera2()
 # need to spend more time at: https://datasheets.raspberrypi.com/camera/picamera2-manual.pdf
@@ -150,57 +158,19 @@ waterfall.fill(0)  # fill black
 
 # Go grab the computed calibration data
 wavelength_data, calmsg1, calmsg2, calmsg3 = readcal(frame_width)
+
+record = Record(wavelength_data)
+# find the indices of the desired wavelengths that we want to monitor absorbance
 if absorbance_wavelengths:
     absorbance_indices = list(np.searchsorted(wavelength_data, absorbance_wavelengths))
     # go one index before the first wavelength of the pair because searchsorted finds the first instance larger than the
     # given number
     for index in range(0, len(absorbance_indices), 2):
         absorbance_indices[index] -= 1
+    record.slice_indices = absorbance_indices
 
 # generate the graticule data
 tens, fifties = generateGraticule(wavelength_data)
-
-
-def snapshot(savedata):
-    now = datetime.utcnow().strftime("%Y%m%d--%H%M%S")
-    timenow = datetime.utcnow().strftime("%H:%M:%S")
-    spectrum_data = savedata[0]
-    graph_data = savedata[1]
-    # print(graph_data)
-    if display_waterfall:
-        waterfall_data = savedata[2]
-        cv2.imwrite(f'waterfall-{now}.png', waterfall_data)
-    cv2.imwrite(f'spectrum-{now}.png', spectrum_data)
-    with open(f'Spectrum-{now}.csv', 'w') as f:
-        f.write('Wavelength,Intensity\r\n')
-        for datum in zip(graph_data[0], graph_data[1]):
-            f.write(f'{datum[0]},{datum[1]}\r\n')
-    message = f"Last Save: {timenow}"
-    return message
-
-def spectrum_recording(wavelengths, intensity, slice_indices, spectrum_file='spectrum_recording.csv'):
-    timenow = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S.%f")
-    recording_wavelength = []
-    recording_intensity = []
-    for points_pair in range(0, len(slice_indices), 2):
-        recording_wavelength += list(wavelengths[slice_indices[points_pair][0]:slice_indices[points_pair + 1][0]])
-        recording_intensity += list(intensity[slice_indices[points_pair][0]:slice_indices[points_pair + 1][0]])
-    if not os.path.isfile(spectrum_file):
-        with open(spectrum_file, 'w') as f:
-            f.write('Wavelength,Intensity,Time\n')
-    with open(spectrum_file, 'a') as f:
-        for datum in zip(recording_wavelength, recording_intensity):
-            f.write(f'{datum[0]},{datum[1]},{timenow}\n')
-    return timenow, recording_wavelength, recording_intensity
-
-def record_absorbance(wavelengths, intensity, slice_indices, spectrum_file='absorbance_spectrum_recording.csv', absorbance_file='absorbance_recording.csv'):
-    timenow, recording_wavelength, recording_intensity = spectrum_recording(wavelengths, intensity, slice_indices, spectrum_file)
-    if not os.path.isfile(absorbance_file):
-        with open(absorbance_file, 'w') as f:
-            f.write('Wavelengths,Area,Time\n')
-    with open(absorbance_file, 'a') as f:
-        for datum in zip(graph_data[0], graph_data[1]):
-            f.write(f'{datum[0]},{datum[1]},{timenow}\n')
 
 while True:
     # Capture frame-by-frame
@@ -612,11 +582,14 @@ while True:
 
     if recording:
         if click_array and not (len(click_array) % 2):
-            spectrum_recording(wavelength_data, intensity, click_array)
-            # print(recording_wavelength)
-            # print(recording_intensity)
+            record.spectrum(intensity, slice_indices=click_array)
         if absorbance_indices:
-            record_absorbance(wavelength_data, intensity, absorbance_indices)
+            record.absorbance(intensity)
+
+    if integrate_absorbtion:
+        integrate_absorbtion = record.calibrate_absorbance(intensity, concentration)
+
+
     key_press = cv2.waitKey(1)
     # key_press = cv2.pollKey()
     if key_press == ord('q'):
@@ -627,29 +600,18 @@ while True:
         elif hold_peaks:
             hold_peaks = False
     elif key_press == ord("s"):
-        # package up the data!
-        graph_data = [wavelength_data, intensity]
         if display_waterfall:
-            save_data = [spectrum_vertical, graph_data, waterfall_vertical]
+            saveMsg = Record.snapshot(wavelength_data, intensity, spectrum_vertical, waterfall_vertical)
         else:
-            save_data = [spectrum_vertical, graph_data]
-        saveMsg = snapshot(save_data)
+            saveMsg = Record.snapshot(wavelength_data, intensity, spectrum_vertical)
     elif key_press == ord("c"):
         calcomplete = writecal(click_array)
         if calcomplete:
             # overwrite wavelength data
             # Go grab the computed calibration data
-            wavelength, calmsg1, calmsg2, calmsg3 = readcal(frame_width)
-            # caldata = readcal(frame_width)
-            # wavelength_data = caldata[0]
-            # calmsg1 = caldata[1]
-            # calmsg2 = caldata[2]
-            # calmsg3 = caldata[3]
+            wavelength_data, calmsg1, calmsg2, calmsg3 = readcal(frame_width)
             # overwrite graticule data
             tens, fifties = generateGraticule(wavelength_data)
-            # graticuleData = generateGraticule(wavelength_data)
-            # tens = (graticuleData[0])
-            # fifties = (graticuleData[1])
     elif key_press == ord("x"):
         click_array = []
     elif key_press == ord("m"):
@@ -708,5 +670,12 @@ while True:
         elif not recording:
             recording = True
 
+    elif key_press == ord("z"):  # Record between two wavelengths
+        cycles_completed = 0
+
+    elif key_press == ord("a"):  # Record between two wavelengths
+        if absorbance_indices:
+            concentration = input("Concentration: ")
+            integrate_absorbtion = True
 # Everything done
 cv2.destroyAllWindows()

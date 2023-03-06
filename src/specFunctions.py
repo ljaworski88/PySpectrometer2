@@ -26,7 +26,10 @@ It is planned to add in GPIO support, to allow the use of buttons and knobs to c
 '''
 
 import numpy as np
-import time
+import os.path
+from dataclasses import dataclass, field
+from datetime import datetime
+import cv2
 
 
 def wavelength_to_rgb(nm):
@@ -363,14 +366,12 @@ def readcal(width, cal_file='caldata.txt'):
 
 
 def writecal(clickArray):
-    calcomplete = False
     pxdata = []
     wldata = []
     print("Enter known wavelengths for observed pixels!")
     for i in clickArray:
-        pixel = i[0]
-        wavelength = input(f"Enter wavelength for: {pixel}px:")
-        pxdata.append(pixel)
+        wavelength = input(f"Enter wavelength for: {i[0]}px:")
+        pxdata.append(i[0])
         wldata.append(wavelength)
     # This try except serves two purposes
     # first I want to write data to the caldata.txt file without quotes
@@ -380,7 +381,7 @@ def writecal(clickArray):
     except ValueError:
         print("Only ints or decimals are allowed!")
         print("Calibration aborted!")
-        return calcomplete
+        return False
 
     pxdata = ','.join(map(str, pxdata))  # convert array to string
     wldata = ','.join(map(str, wldata))  # convert array to string
@@ -388,8 +389,7 @@ def writecal(clickArray):
         f.write(pxdata + '\r\n')
         f.write(wldata + '\r\n')
     print("Calibration Data Written!")
-    calcomplete = True
-    return calcomplete
+    return True
 
 
 def generateGraticule(wavelengthData):
@@ -431,6 +431,170 @@ def generateGraticule(wavelengthData):
                 fifties.append(labeldata)
     returndata.append(fifties)
     return returndata
+
+@dataclass
+class Record():
+    wavelengths: list
+    slice_indices: list = field(default_factory=lambda: [])
+    intensities: list = field(default_factory=lambda: [])
+    integration_cycles: int = 10
+    spectrum_file: str = 'spectrum.csv'
+    absorbance_file: str = 'absorbance.csv'
+    calibration_file: str = 'calibration.csv'
+    calculated_file: str = 'calculated.csv'
+
+    def __post_init__(self):
+        self.current_time = datetime.now()
+        self.cycles = 0
+        self.integrated_absorbance = []
+
+    @staticmethod
+    def snapshot(wavelength, intensity, spectrum_picture, waterfall_picture=None):
+        """
+
+        """
+        now = datetime.now()
+        if waterfall_picture:
+            cv2.imwrite(f'waterfall-{now.strftime("%Y%m%d--%H%M%S")}.png', waterfall_picture)
+        cv2.imwrite(f'spectrum-{now.strftime("%Y%m%d--%H%M%S")}.png', spectrum_picture)
+        with open(f'Spectrum-{now.strftime("%Y%m%d--%H%M%S")}.csv', 'w') as f:
+            f.write('Wavelength,Intensity\n')
+            for datum in zip(wavelength, intensity):
+                f.write(f'{datum[0]},{datum[1]}\n')
+        message = f"Last Save: {now.strftime('%H:%M:%S')}"
+        return message
+
+    @staticmethod
+    def slice(indices, full_list):
+        sliced_list = []
+        for points_pair in range(0, len(indices), 2):
+            sliced_list += list(full_list[indices[points_pair]:indices[points_pair + 1]])
+        return sliced_list
+
+    def spectrum(self,
+                 intensity,
+                 wavelengths=None,
+                 slice_indices=None,
+                 spectrum_file=None,
+                 update_time=True):
+        """
+        Record a slice of the spectrum.
+        :param intensity: list(intensities)
+        :param wavelengths: list(wavelengths)
+        :param slice_indices: list(indices of where to start and stop); must be divisible by two
+        :param spectrum_file: str(filename); where to save the spectrum data
+        :return time_now: str(current time in YYYY-MM-DD HH:MM:SS.ssssss format)
+        """
+        if update_time:
+            self.current_time = datetime.now()
+        if slice_indices:
+            recording_intensity = self.slice(slice_indices, intensity)
+            if wavelengths:
+                recording_wavelength = self.slice(slice_indices, wavelengths)
+            else:
+                recording_wavelength = self.slice(slice_indices, self.wavelengths)
+        elif self.slice_indices:
+            recording_intensity = self.slice(self.slice_indices, intensity)
+            recording_wavelength = self.wavelengths
+        else:
+            recording_intensity = intensity
+            if wavelengths:
+                recording_wavelength = wavelengths
+            else:
+                recording_wavelength = self.wavelengths
+
+        if spectrum_file:
+            save_file = spectrum_file
+        else:
+            save_file = self.spectrum_file
+        if not os.path.isfile(save_file):
+            with open(save_file, 'w') as f:
+                f.write('Wavelength,Intensity,Time\n')
+        with open(save_file, 'a') as f:
+            for wavelength, intensity_value in zip(recording_wavelength, recording_intensity):
+                f.write(f'{wavelength},{intensity_value},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}\n')
+        return
+
+    def absorbance(self,
+                   intensity,
+                   wavelengths=None,
+                   slice_indices=None,
+                   spectrum_file=None,
+                   absorbance_file=None,
+                   update_time=True,
+                   record_spectrum=True):
+        """
+        Takes the wavelength_data and intensity along with the indices of where to cut off said data and creates two files.
+        One file contains the full spectrum recording for the indices, the other records the wavelength range and the area
+        under the curve of that wavelength range using simpsons rule.
+        :param wavelengths: list(wavelengths)
+        :param intensity: list(intensities)
+        :param slice_indices: list(indices of where to start and stop); must be divisible by two
+        :param spectrum_file: str(filename); where to save the spectrum data
+        :param absorbance_file: str(filename); where to store the absorbance data
+        :return time_now: str(current time in YYYY-MM-DD HH:MM:SS.ssssss format)
+        """
+        if update_time:
+            self.current_time = datetime.now()
+        if record_spectrum:
+            self.spectrum(intensity=intensity,
+                          wavelengths=wavelengths,
+                          slice_indices=slice_indices,
+                          spectrum_file=spectrum_file,
+                          update_time=False)
+        if not wavelengths:
+            wavelengths = self.wavelengths
+        if not slice_indices:
+            slice_indices = self.slice_indices
+        areas = []
+        wavelength_pairs = []
+        for points_pair in range(0, len(slice_indices), 2):
+            area = np.trapz(intensity[slice_indices[points_pair]:slice_indices[points_pair + 1]],
+                            x=wavelengths[slice_indices[points_pair]:slice_indices[points_pair + 1]])
+            areas.append(area)
+            wavelength_pairs.append(f'{wavelengths[slice_indices[points_pair]]}:{wavelengths[slice_indices[points_pair + 1]]}')
+
+        if not os.path.isfile(absorbance_file) and absorbance_file:
+            with open(absorbance_file, 'w') as f:
+                f.write('Wavelengths,Area,Time\n')
+        with open(absorbance_file, 'a') as f:
+            for area, wavelength_pair in zip(areas, wavelength_pairs):
+                f.write(f'{wavelength_pair},{area},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}')
+        return areas, wavelength_pairs
+
+    def calibrate_absorbance(self,
+                             intensity,
+                             concentration,
+                             wavelengths=None,
+                             slice_indices=None,
+                             spectrum_file=None,
+                             calibration_file=None,
+                             update_time=True):
+        if update_time:
+            self.current_time = datetime.now()
+        absorbance_values, wavelength_pairs = self.absorbance(intensity,
+                                                              wavelengths=wavelengths,
+                                                              slice_indices=slice_indices,
+                                                              spectrum_file=spectrum_file,
+                                                              absorbance_file=None,
+                                                              update_time=False)
+        if self.cycles == 0:
+            self.integrated_absorbance = list(map(lambda x: x/self.integration_cycles, absorbance_values))
+        elif self.cycles < self.integration_cycles:
+            self.integrated_absorbance = list(map(lambda x, y: x + y/self.integration_cycles, self.integrated_absorbance, absorbance_values))
+        else:
+            if not calibration_file:
+                calibration_file = self.calibration_file
+            if not os.path.isfile(calibration_file):
+                    with open(calibration_file, 'w') as f:
+                        f.write('Wavelengths,Area,Concentration,Time\n')
+            with open(calibration_file, 'a') as f:
+                for area, wavelength_pair in zip(self.integrated_absorbance, wavelength_pairs):
+                    f.write(f'{wavelength_pair},{area},{concentration},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}')
+            self.cycles = 0
+            return False
+        return True
+
 
 
 # this magic variable is the Pyspectrometer 2 splash banner
