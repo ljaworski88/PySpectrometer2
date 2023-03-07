@@ -581,17 +581,12 @@ class Record():
                                                               absorbance_file=None,
                                                               update_time=False)
         if self.cycles == 0:
-            print(f'condition 0-cycles:{self.cycles}')
             self.integrated_absorbance = list(map(lambda x: x/self.integration_cycles, absorbance_values))
             self.cycles += 1
         elif self.cycles < self.integration_cycles:
-            print(f'condition 1-cycles:{self.cycles}')
-            print(f'condition 1-integration_cycles:{self.integration_cycles}')
             self.integrated_absorbance = list(map(lambda x, y: x + y/self.integration_cycles, self.integrated_absorbance, absorbance_values))
             self.cycles += 1
         else:
-            print(f'condition 2-cycles:{self.cycles}')
-            print(f'condition 2-integration_cycles:{self.integration_cycles}')
             if not calibration_file:
                 calibration_file = self.calibration_file
             if not os.path.isfile(calibration_file):

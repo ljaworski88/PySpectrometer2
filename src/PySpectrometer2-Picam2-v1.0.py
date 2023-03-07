@@ -39,32 +39,32 @@ parser = argparse.ArgumentParser()
 group = parser.add_mutually_exclusive_group()
 group.add_argument("--fullscreen", "-f", help="Fullscreen (Native 800*480)", action="store_true")
 group.add_argument("--waterfall", "-w", help="Enable Waterfall (Windowed only)", action="store_true")
-group.add_argument("--absorbance", "-a",
+parser.add_argument("--absorbance", "-a",
                    nargs='+',
                    help="Set up a recording for absorbance measurements between sets of two wavelengths",
                    type=float)
 
-group.add_argument("--savgolay", "-s",
+parser.add_argument("--savgolay", "-s",
                    nargs=1,
                    help="Set initial Savitzky-Golay filter smoothing",
                    type=int)
-group.add_argument("--gain", "-g",
+parser.add_argument("--gain", "-g",
                    nargs=1,
                    help="Set initial camera gain",
                    type=int)
-group.add_argument("--spectrum_file",
+parser.add_argument("--spectrum_file",
                    nargs=1,
                    help="Change the name of the spectrum recording file",
                    type=str)
-group.add_argument("--absorbance_file",
+parser.add_argument("--absorbance_file",
                    nargs=1,
                    help="Change the name of the absorption reading file",
                    type=str)
-group.add_argument("--absorbance_calibration",
+parser.add_argument("--absorbance_calibration",
                    nargs=1,
                    help="Change the name of the absorption calibration file",
                    type=str)
-group.add_argument("--integration_cycles",
+parser.add_argument("--integration_cycles",
                    nargs=1,
                    help="Set how many readings are averaged when doing an absorption calibration reading",
                    type=int)
