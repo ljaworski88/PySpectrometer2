@@ -40,17 +40,33 @@ group = parser.add_mutually_exclusive_group()
 group.add_argument("--fullscreen", "-f", help="Fullscreen (Native 800*480)", action="store_true")
 group.add_argument("--waterfall", "-w", help="Enable Waterfall (Windowed only)", action="store_true")
 group.add_argument("--absorbance", "-a",
-                   nargs=1,
+                   nargs='+',
                    help="Set up a recording for absorbance measurements between sets of two wavelengths",
                    type=float)
 
-group.add_argument("--savitzky-golay", "-s",
-                   nargs='+',
+group.add_argument("--savgolay", "-s",
+                   nargs=1,
                    help="Set initial Savitzky-Golay filter smoothing",
                    type=int)
 group.add_argument("--gain", "-g",
                    nargs=1,
                    help="Set initial camera gain",
+                   type=int)
+group.add_argument("--spectrum_file",
+                   nargs=1,
+                   help="Change the name of the spectrum recording file",
+                   type=str)
+group.add_argument("--absorbance_file",
+                   nargs=1,
+                   help="Change the name of the absorption reading file",
+                   type=str)
+group.add_argument("--absorbance_calibration",
+                   nargs=1,
+                   help="Change the name of the absorption calibration file",
+                   type=str)
+group.add_argument("--integration_cycles",
+                   nargs=1,
+                   help="Set how many readings are averaged when doing an absorption calibration reading",
                    type=int)
 args = parser.parse_args()
 display_fullscreen = False
@@ -67,10 +83,22 @@ if args.absorbance:
     if len(args.absorbance) % 2:
         raise (ValueError('Need an even number of wavelength values!'))
     absorbance_wavelengths = args.absorbance
+if args.gain:
+    picamGain = args.gain
+else:
+    picamGain = 10.0
+# settings for peak detect
+if args.savgolay:
+    savpoly = args.savgolay
+else:
+    savpoly = 7  # savgol filter polynomial max val 15
+mindist = 50  # minumum distance between peaks max val 100
+thresh = 20  # Threshold max val 100
 
 frame_width = 800
 frameHeight = 600
-integrate_absorbtion = False
+
+integrate_absorption = False
 
 picam2 = Picamera2()
 # need to spend more time at: https://datasheets.raspberrypi.com/camera/picamera2-manual.pdf
@@ -79,7 +107,6 @@ picam2 = Picamera2()
 # 30fps (33333, 33333)
 # 25fps (40000, 40000)
 
-picamGain = 10.0
 
 video_config = picam2.create_video_configuration(main={"format": 'RGB888', "size": (frame_width, frameHeight)},
                                                  controls={"FrameDurationLimits": (33333, 33333)})
@@ -110,10 +137,6 @@ else:
     cv2.resizeWindow(title1, frame_width, stackHeight)
     cv2.moveWindow(title1, 0, 0)
 
-# settings for peak detect
-savpoly = 7  # savgol filter polynomial max val 15
-mindist = 50  # minumum distance between peaks max val 100
-thresh = 20  # Threshold max val 100
 
 calibrate = False
 
@@ -169,6 +192,12 @@ if absorbance_wavelengths:
         absorbance_indices[index] -= 1
     record.slice_indices = absorbance_indices
 
+if args.absorbance_file:
+    record.absorbance_file = args.absorbance_file
+if args.spectrum_file:
+    record.spectrum_file = args.spectrum_file
+if args.absorbance_calibration:
+    record.calibration_file = args.absorbance_calibration
 # generate the graticule data
 tens, fifties = generateGraticule(wavelength_data)
 
@@ -586,8 +615,8 @@ while True:
         if absorbance_indices:
             record.absorbance(intensity)
 
-    if integrate_absorbtion:
-        integrate_absorbtion = record.calibrate_absorbance(intensity, concentration)
+    if integrate_absorption:
+        integrate_absorption = record.calibrate_absorbance(intensity, concentration)
 
 
     key_press = cv2.waitKey(1)
@@ -610,6 +639,7 @@ while True:
             # overwrite wavelength data
             # Go grab the computed calibration data
             wavelength_data, calmsg1, calmsg2, calmsg3 = readcal(frame_width)
+            record.wavelengths = wavelength_data
             # overwrite graticule data
             tens, fifties = generateGraticule(wavelength_data)
     elif key_press == ord("x"):
@@ -676,6 +706,6 @@ while True:
     elif key_press == ord("a"):  # Record between two wavelengths
         if absorbance_indices:
             concentration = input("Concentration: ")
-            integrate_absorbtion = True
+            integrate_absorption = True
 # Everything done
 cv2.destroyAllWindows()
