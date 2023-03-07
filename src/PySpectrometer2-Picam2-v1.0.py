@@ -84,12 +84,12 @@ if args.absorbance:
         raise (ValueError('Need an even number of wavelength values!'))
     absorbance_wavelengths = args.absorbance
 if args.gain:
-    picamGain = args.gain
+    picamGain = args.gain[0]
 else:
     picamGain = 10.0
 # settings for peak detect
 if args.savgolay:
-    savpoly = args.savgolay
+    savpoly = args.savgolay[0]
 else:
     savpoly = 7  # savgol filter polynomial max val 15
 mindist = 50  # minumum distance between peaks max val 100
@@ -193,11 +193,11 @@ if absorbance_wavelengths:
     record.slice_indices = absorbance_indices
 
 if args.absorbance_file:
-    record.absorbance_file = args.absorbance_file
+    record.absorbance_file = args.absorbance_file[0]
 if args.spectrum_file:
-    record.spectrum_file = args.spectrum_file
+    record.spectrum_file = args.spectrum_file[0]
 if args.absorbance_calibration:
-    record.calibration_file = args.absorbance_calibration
+    record.calibration_file = args.absorbance_calibration[0]
 # generate the graticule data
 tens, fifties = generateGraticule(wavelength_data)
 
@@ -611,7 +611,8 @@ while True:
 
     if recording:
         if click_array and not (len(click_array) % 2):
-            record.spectrum(intensity, slice_indices=click_array)
+            click_slice = [x[0] for x in click_array]
+            record.spectrum(intensity, slice_indices=click_slice)
         if absorbance_indices:
             record.absorbance(intensity)
 
