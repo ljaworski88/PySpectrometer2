@@ -495,7 +495,7 @@ class Record():
                 recording_wavelength = self.slice(slice_indices, self.wavelengths)
         elif self.slice_indices:
             recording_intensity = self.slice(self.slice_indices, intensity)
-            recording_wavelength = self.wavelengths
+            recording_wavelength = self.slice(self.slice_indices, self.wavelengths)
         else:
             recording_intensity = intensity
             if wavelengths:
@@ -536,7 +536,7 @@ class Record():
         """
         if update_time:
             self.current_time = datetime.now()
-        if absorbance_file is None:
+        if not absorbance_file:
             absorbance_file = self.absorbance_file
         if record_spectrum:
             self.spectrum(intensity=intensity,
@@ -561,7 +561,7 @@ class Record():
                 f.write('Wavelengths,Area,Time\n')
         with open(absorbance_file, 'a') as f:
             for area, wavelength_pair in zip(areas, wavelength_pairs):
-                f.write(f'{wavelength_pair},{area},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}')
+                f.write(f'{wavelength_pair},{area},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}\n')
         return areas, wavelength_pairs
 
     def calibrate_absorbance(self,
@@ -592,7 +592,7 @@ class Record():
                         f.write('Wavelengths,Area,Concentration,Time\n')
             with open(calibration_file, 'a') as f:
                 for area, wavelength_pair in zip(self.integrated_absorbance, wavelength_pairs):
-                    f.write(f'{wavelength_pair},{area},{concentration},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}')
+                    f.write(f'{wavelength_pair},{area},{concentration},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}\n')
             self.cycles = 0
             return False
         return True
