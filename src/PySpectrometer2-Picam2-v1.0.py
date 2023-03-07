@@ -83,13 +83,16 @@ if args.absorbance:
     if len(args.absorbance) % 2:
         raise (ValueError('Need an even number of wavelength values!'))
     absorbance_wavelengths = args.absorbance
+    print(f'Monitoring wavelengths: {absorbance_wavelengths}')
 if args.gain:
     picamGain = args.gain[0]
+    print(f'New Camera Gain: {picamGain}')
 else:
     picamGain = 10.0
 # settings for peak detect
 if args.savgolay:
     savpoly = args.savgolay[0]
+    print(f'New Savitzky-Golay filter polynomial: {savpoly}')
 else:
     savpoly = 7  # savgol filter polynomial max val 15
 mindist = 50  # minumum distance between peaks max val 100
@@ -194,10 +197,13 @@ if absorbance_wavelengths:
 
 if args.absorbance_file:
     record.absorbance_file = args.absorbance_file[0]
+    print(f'Saving absorbance results to: {record.absorbance_file}')
 if args.spectrum_file:
     record.spectrum_file = args.spectrum_file[0]
+    print(f'Saving spectrum results to: {record.spectrum_file}')
 if args.absorbance_calibration:
     record.calibration_file = args.absorbance_calibration[0]
+    print(f'Saving absorbance calibration results to: {record.calibration_file}')
 # generate the graticule data
 tens, fifties = generateGraticule(wavelength_data)
 
@@ -697,8 +703,10 @@ while True:
 
     elif key_press == ord("r"):  # Record between two wavelengths
         if recording:
+            print('Stopping Recording!')
             recording = False
         elif not recording:
+            print('Starting Recording!')
             recording = True
 
     elif key_press == ord("z"):  # Record between two wavelengths

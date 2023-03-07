@@ -536,6 +536,8 @@ class Record():
         """
         if update_time:
             self.current_time = datetime.now()
+        if absorbance_file is None:
+            absorbance_file = self.absorbance_file
         if record_spectrum:
             self.spectrum(intensity=intensity,
                           wavelengths=wavelengths,
