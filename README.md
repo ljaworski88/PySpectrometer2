@@ -12,6 +12,22 @@ Visit my Youtube Channel at: https://www.youtube.com/leslaboratory
 
 There is a video on this project here: https://youtu.be/SCp9T8NKfnM
 
+Hi guys! I'm just adding what my changes are to my fork of this project.
+
+All previous functionality is still present. The backend however has been changed. Lots of renaming and reformatting the project to conform better to PEP8 has been done for tidyness. Most if not all of the openCV functions had the parameters listed by name instead of just the order, this was done for my readablility as I am not yet very familiar with the library. 
+
+The snapshot feature has been moved to the specFunctions.py file and was made a static method of the Record class. Which, speaking of, is a class added to be able to continously record the spectrum either in part or in whole (without taking pictures). Also there is a method to be able to record the absorbance and to record a calibration curve, though using it to reverse out the concentration of an unknown is not yet possible.
+
+To use the new absorbance feature the wavelength ranges of interest need to be added in the commandline using the either '--absorbance' or the '-a' flag. i.e:
+
+./PySpectrometer2-Picam2-v1.0.py -a 405 455
+
+The absorbance records the area under the curve between the given wavelengths so it always requires multiples of two wavelengths going from smaller wavelength to higher wavelength.
+
+Using the record pixels command (p)[function in the original PySpectrometer2] and the the record command (r)[function added by me] a continous recording of the spectrum between the two points will be done. It will also record the absorbance of intrested from the command line and record that spectrum.
+
+Note: only one spectrum file is currently generated for both the absorbance and placed pixel spectrum recording.
+
 ## Rationale for the new build
 
 Recent changes in the OS (Bullseye) broke the old version e.g broken video, broken dependencies and so on. PySpectrometer v3.0 was hacked and fixed as of 3.1), however I have been thinking about a rewrite of this software for a while, so here it is!
