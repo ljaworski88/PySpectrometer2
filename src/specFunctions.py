@@ -30,6 +30,7 @@ import os.path
 from dataclasses import dataclass, field
 from datetime import datetime
 import cv2
+from easygui import *       #KS - NEW
 
 
 def wavelength_to_rgb(nm):
@@ -515,6 +516,7 @@ class Record():
                 f.write(f'{wavelength},{intensity_value},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}\n')
         return
 
+##TODO change names of absorbance to transmittance
     def absorbance(self,
                    intensity,
                    wavelengths=None,
@@ -527,13 +529,16 @@ class Record():
         Takes the wavelength_data and intensity along with the indices of where to cut off said data and creates two files.
         One file contains the full spectrum recording for the indices, the other records the wavelength range and the area
         under the curve of that wavelength range using simpsons rule.
-        :param wavelengths: list(wavelengths)
         :param intensity: list(intensities)
-        :param slice_indices: list(indices of where to start and stop); must be divisible by two
+        :param wavelengths: list(wavelengths)
+        :param slice_indices: list(indices of where to start and stop); number of members must be divisible by two
         :param spectrum_file: str(filename); where to save the spectrum data
         :param absorbance_file: str(filename); where to store the absorbance data
-        :return time_now: str(current time in YYYY-MM-DD HH:MM:SS.ssssss format)
+        :param update_time: bool; indicates weather the current reading time should be updated
+        :return areas, wavelength_pairs: list(absrobance_areas), list(str("start_wavlength:stop_wavelength"))
         """
+        ## This value shouldn't be updated if being called by another function within this class as it will throw off
+        ## the time recorded for a particular reading and it will no longer agree between files
         if update_time:
             self.current_time = datetime.now()
         if not absorbance_file:
@@ -550,7 +555,9 @@ class Record():
             slice_indices = self.slice_indices
         areas = []
         wavelength_pairs = []
+        ## slice_indices indicated the index of the start and stop points, so we need to take pairs of readings
         for points_pair in range(0, len(slice_indices), 2):
+            ## absorbance is the area
             area = np.trapz(intensity[slice_indices[points_pair]:slice_indices[points_pair + 1]],
                             x=wavelengths[slice_indices[points_pair]:slice_indices[points_pair + 1]])
             areas.append(area)
@@ -572,6 +579,18 @@ class Record():
                              spectrum_file=None,
                              calibration_file=None,
                              update_time=True):
+        """
+        Create a calibration file where concentrations can be correlated with absorbance values. The function averages
+        ten readings of the area under the curve at the preselected absorbance wavelength ranges.
+        :param intensity: list(intensities)
+        :param concentration: str(concentration); the input concentration
+        :param wavelengths: list(wavelengths)
+        :param slice_indices: list(indices of where to start and stop); number of members must be divisible by two
+        :param spectrum_file: str(filename); where to save the spectrum data
+        :param calibration_file: str(filename); where to store the calibration data(concentration-absorbance data)
+        :param update_time: bool; should the current time of the reading be updated
+        :return: bool; return True when the total number of integration cycles has been reach otherwise return false
+        """
         if update_time:
             self.current_time = datetime.now()
         absorbance_values, wavelength_pairs = self.absorbance(intensity,
@@ -588,10 +607,14 @@ class Record():
             self.cycles += 1
         else:
             if not calibration_file:
-                calibration_file = self.calibration_file
+                calibration_file = self.calibration_filegit 
             if not os.path.isfile(calibration_file):
-                    with open(calibration_file, 'w') as f:
-                        f.write('Wavelengths,Area,Concentration,Time\n')
+                prompt = "Enter a nickname for this capture:"       #KS - NEW
+                title = "Save New Absorbance File"                  #KS - NEW
+                nickname = enterbox(prompt, title)                  #KS - NEW
+                timestamp = self.current_time.strftime('%Y-%m-%d_%H-%M-%S')
+                with open(f"Absorbance_{timestamp}_{nickname}", "x") as f:
+                    f.write('Wavelengths,Area,Concentration,Time\n')
             with open(calibration_file, 'a') as f:
                 for area, wavelength_pair in zip(self.integrated_absorbance, wavelength_pairs):
                     f.write(f'{wavelength_pair},{area},{concentration},{self.current_time.strftime("%Y-%m-%d %H:%M:%S.%f")}\n')
