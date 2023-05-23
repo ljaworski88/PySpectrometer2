@@ -607,13 +607,13 @@ class Record():
             self.cycles += 1
         else:
             if not calibration_file:
-                calibration_file = self.calibration_filegit 
-            if not os.path.isfile(calibration_file):
-                prompt = "Enter a nickname for this capture:"       #KS - NEW
-                title = "Save New Absorbance File"                  #KS - NEW
-                nickname = enterbox(prompt, title)                  #KS - NEW
+
+                prompt = "Enter a nickname for this capture:"
+                title = "Save New Absorbance File"
+                nickname = enterbox(prompt, title)
                 timestamp = self.current_time.strftime('%Y-%m-%d_%H-%M-%S')
-                with open(f"Absorbance_{timestamp}_{nickname}", "x") as f:
+                calibration_file = f"Absorbance_{timestamp}_{nickname}"
+                with open(calibration_file, "x") as f:
                     f.write('Wavelengths,Area,Concentration,Time\n')
             with open(calibration_file, 'a') as f:
                 for area, wavelength_pair in zip(self.integrated_absorbance, wavelength_pairs):

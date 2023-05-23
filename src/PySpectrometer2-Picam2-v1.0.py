@@ -714,7 +714,6 @@ while True:
 
     elif key_press == ord("a"):  # Record between two wavelengths
         if absorbance_indices:
-            concentration = input("Concentration: ")
             integrate_absorption = True
 # Everything done
 cv2.destroyAllWindows()
