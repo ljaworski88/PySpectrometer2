@@ -1,6 +1,35 @@
 #!/usr/bin/env python3
 
 """
+PySpectrometer2-Picam2-v1.0.py
+------------------------------------------------------------------------------------------------------------------------
+Description:
+This file is the interface software for a raspberry pi based spectrometer. The software is based on an open source
+project by Les Wright (see below). This code is modified to be able to read the transmittance of wavelength ranges so
+that they can be used to elucidate the mixing of two solutions injected into a flowcell.
+
+Usage:
+>python PySpectrometer2-Picam2-v1.0.py -g 1 -s 7 -a 435.1 444.6
+
+Modules used:
+
+import cv2
+import numpy as np
+from specFunctions import wavelength_to_rgb, savitzky_golay, peakIndexes, readcal, writecal, background, \
+    generateGraticule, Record
+import base64
+import argparse
+from picamera2 import Picamera2
+
+------------------------------------------------------------------------------------------------------------------------
+Authors: Lukas Jaworski | The Texas Heart Institute
+         Kunal Shaw | The Texas Heart Institute
+         Les Wright | Self
+Date: 2023-11-05
+
+------------------------------------------------------------------------------------------------------------------------
+Library author description
+
 PySpectrometer2 Les Wright 2022
 https://www.youtube.com/leslaboratory
 https://github.com/leswright1977
